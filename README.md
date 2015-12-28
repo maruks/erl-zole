@@ -1,7 +1,8 @@
 zole
 =====
 
-An OTP application
+Erlang/OTP implementation of card game [Zole](https://en.wikipedia.org/wiki/Zole).
+
 
 Build
 -----

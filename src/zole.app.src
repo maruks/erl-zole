@@ -1,15 +1,14 @@
-{application, 'zole',
- [{description, "An OTP application"},
+{application, zole,
+ [{description, "Zole OTP application"},
   {vsn, "0.1.0"},
+  {modules, [zole_app,zole_sup,zole,table_fsm]},
   {registered, []},
-  {mod, {'zole_app', []}},
+  {mod, {zole_app, []}},
   {applications,
    [kernel,
     stdlib
    ]},
   {env,[]},
-  {modules, []},
-
   {contributors, []},
   {licenses, []},
   {links, []}
