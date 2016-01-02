@@ -6,10 +6,10 @@
   {mod, {zole_app, []}},
   {applications,
    [kernel,
-    stdlib
+    stdlib,
+    lager
    ]},
-  {env,[]},
+  {env, []},
   {contributors, []},
   {licenses, []},
-  {links, []}
- ]}.
+  {links, []}]}.

@@ -1,75 +1,64 @@
 -module(player).
--compile(export_all).
+-import(table_sup,[join_or_create/2,last_game/1,leave/1,zole/1,lielais/1,pass/1,save/2,play/2]).
+-import(zole,[is_trump/1,seed_rnd/0]).
+-export([start/2,init/2]).
 
-send(Name, Table, Msg) ->
-    R = table_fsm:send_msg(Table, Msg),
-    io:format("~p Msg ~p Reply ~p~n", [Name,Msg,R]),
-    case {Msg, R} of
-	{{play,_}, {error, _}} ->
-	    self() ! {prompt, play};
-	{{save,_}, {error, _}} ->
-	    self() ! {prompt, save};
-	_ ->
-	    ok
-    end.
-
-choice() ->
-    [lielais,zole,pass].
-
-print_menu(Xs) ->
-    S = lists:seq(1, length(Xs)),
-    M = lists:zip(S, Xs),
-    lists:foreach(fun({N,E}) -> io:format("~p ~p~n",[N,E]) end, M).
-
-init(Name, Table) ->
-    send(Name,Table, {join}),
-    loop(Name, Table, []).
-
-loop(Name, Table, Cards) ->
-    receive
-	{cards, NewCards} ->
-	    loop(Name, Table, NewCards);
-	{prompt, play} ->
-	    io:format("Player ~p~n",[Name]),
-	    print_menu(Cards),
-	    C = list_to_integer(io:get_chars(">",1)),
-	    send(Name,Table, {play, lists:nth(C, Cards)}),
-	    loop(Name, Table, Cards);
-	{prompt, save} ->
-    	    io:format("Player ~p~n",[Name]),
-	    print_menu(Cards),
-	    Inp = io:get_chars(">",2),
-	    Cs = lists:map(fun(N)-> lists:nth(list_to_integer([N]),Cards) end, Inp),
-	    send(Name,Table, {save, Cs}),
-	    loop(Name, Table, Cards);
-	{prompt, choose} ->
-    	    io:format("Player ~p Cards ~p~n",[Name, Cards]),
-	    print_menu(choice()),
-	    C = list_to_integer(io:get_chars(">",1)),
-	    send(Name,Table, {lists:nth(C, choice())}),
-	    loop(Name, Table, Cards);
-	{plays, P, Cards} ->
-	    io:format("~p plays ~p ~p ~n",[P,hd(Cards),Cards]),
-	    loop(Name, Table, Cards);
-	{end_of_game, Saved, GameType, Taken} ->
-    	    io:format("END ~p ~p ~p ~n",[Saved, GameType, Taken]),
-	    loop(Name, Table, Cards);
-	{wins, Winner, Cards} ->
-	    io:format("~p wins ~p~n",[Winner, Cards]),
-    	    loop(Name, Table, Cards);
-	M ->
-	    io:format("MSG ~p~n",[M]),
-	    loop(Name, Table, Cards)
-    end.
-
+init(Name, TableName) ->
+    {ok} = admin:login(Name),
+    {ok, Pid} = table_sup:join_or_create(TableName, true),
+    seed_rnd(),
+    loop(Name, Pid, [], []).
 
 start(Name, Table) ->
     spawn(?MODULE, init, [Name, Table]).
 
-foo() ->
-    application:start(zole),
-    zole_sup:create_table(table),
-    P1 = start(player1, table),
-    P2 = start(player2, table),
-    P3 = start(player3, table),
-    {P1, P2, P3}.
+choose_card(Cards, []) ->
+    lists:nth(random:uniform(length(Cards)), Cards);
+choose_card(Cards, OnTable) ->
+    {R,S} = C = lists:last(OnTable),
+    Trump = is_trump(C),
+    AnyT = lists:any(fun zole:is_trump/1, Cards),
+    AnyS = lists:any(fun({_,X}=T) -> X==S andalso not(is_trump(T)) end, Cards),
+    F = case {Trump, AnyT, AnyS} of
+	{true, true, _} ->
+	    lists:filter(fun zole:is_trump/1, Cards);
+	{false, _, true} ->
+	    lists:filter(fun({_,X}=T) -> X==S andalso not(is_trump(T)) end, Cards);
+	_ ->
+	    Cards
+	end,
+    choose_card(F, []).
+
+loop(Name, Table, Cards, OnTable) ->
+    receive
+	{cards, NewCards} ->
+	    loop(Name, Table, NewCards, OnTable);
+	{prompt, play} ->
+	    C = choose_card(Cards, OnTable),
+	    play(Table, C),
+	    loop(Name, Table, Cards, OnTable);
+	{prompt, save} ->
+	    S = lists:sublist(Cards, random:uniform(length(Cards) - 2), 2),
+	    save(Table, S),
+	    loop(Name, Table, Cards, []);
+	{prompt, {choose, _N}} ->
+	    R = random:uniform(5),
+	    case R of
+		L when L<3 -> lielais(Table);
+		3 -> zole(Table);
+		_ -> pass(Table)
+	    end,
+	    loop(Name, Table, Cards, []);
+	{plays, _, NewOnTable} ->
+	    loop(Name, Table, Cards, NewOnTable);
+	{end_of_game, _GameNum, _Saved, _GameType, _Taken, _Points} ->
+	    loop(Name, Table, Cards, []);
+	{wins, _Winner, _CardsTaken} ->
+    	    loop(Name, Table, Cards, []);
+	{game_type, _T, _N} ->
+    	    loop(Name, Table, Cards, OnTable);
+	{last_game, _P} ->
+    	    loop(Name, Table, Cards, OnTable);
+	{table_closed, _TableName, _Pts} ->
+    	    admin:logout()
+    end.
