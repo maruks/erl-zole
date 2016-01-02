@@ -2,6 +2,7 @@
 -define(NUMBER_OF_PLAYERS, 3).
 -behaviour(gen_fsm).
 -import(lists,[delete/2,nth/2,split/2,sort/2,map/2,nth/2,zip/2,member/2,reverse/1,foreach/2]).
+-import(proplists,[get_value/2,is_defined/2]).
 -import(maps,[get/2,put/3,from_list/1,to_list/1,is_key/2,keys/1,get/3,update/3]).
 -import(zole,[deal_cards/0,deck/0,sort_cards/1,winner/1,is_legal_play/3,is_legal_save/2]).
 -export([init/1,start_link/1,terminate/3,handle_info/3,code_change/4,handle_sync_event/4,handle_event/3]).
@@ -18,7 +19,7 @@ init(Name) ->
 % FSM states
 
 wait2join({join, Name}, {From, _}, {TableName, Players} = S) ->
-    case proplists:is_defined(From, Players) of
+    case is_defined(From, Players) of
 	true ->
 	    illegal_message(wait2join, S);
 	false ->
@@ -33,7 +34,7 @@ wait2join({join, Name}, {From, _}, {TableName, Players} = S) ->
 	    end
 	end;
 wait2join({leave}, {From, _}, {TableName, Players} = S) ->
-    case proplists:is_defined(From, Players) of
+    case is_defined(From, Players) of
 	true ->
 	    NextPlayers = proplists:delete(From, Players),
  	    admin:table_available(TableName, player_names(NextPlayers)),
@@ -51,7 +52,7 @@ wait2choose(Msg, {Player, _}, {TableName, Players, CardsMap, Table, PNL, Hand, R
 		    start_playing(TableName, Players, CardsMap, Table, {zole, Player}, PNL);
 		{lielais} ->
 		    NewCards = get(Player, CardsMap) ++ Table,
-		    NextCards = put(Player, NewCards, CardsMap),
+		    NextCards = CardsMap#{Player := NewCards},
 		    send_cards(Player, NewCards),
 		    send_prompt(Player, save),
 		    {reply, {ok}, wait2save, {TableName, Players, NextCards, [], {lielais, Player}, PNL}};
@@ -71,7 +72,7 @@ wait2save({save, Cards}, {Player, _}, {TableName, Players, CardsMap, [], {lielai
 	    illegal_message(wait2save, S);
 	true ->
 	    NewCards = get(Player, CardsMap) -- Cards,
-	    NextCards = put(Player, NewCards, CardsMap),
+	    NextCards = CardsMap#{Player := NewCards},
 	    send_cards(Player, get(Player, NextCards)),
 	    start_playing(TableName, Players, NextCards, Cards, {lielais, Player}, PNL)
     end;
@@ -97,16 +98,16 @@ table_closed(_, _, S) ->
 play(Card, Player, {TableName, Players, Cards, Saved, GameType, PNL, Hand, Table, Taken}) ->
     NextTable = [{Player, Card} | Table],
     CardsLeft = delete(Card, get(Player, Cards)),
-    NextCards = update(Player, CardsLeft, Cards),
+    NextCards = Cards#{Player := CardsLeft},
     send_cards(Player, CardsLeft),
-    send_to_all(Players, {plays, proplists:get_value(Player, Players), table_cards(NextTable)}),
+    send_to_all(Players, {plays, get_value(Player, Players), table_cards(NextTable)}),
     case length(NextTable) of
 	?NUMBER_OF_PLAYERS ->
 	    CardsPlayed = table_cards(NextTable),
 	    WinnerCard = winner(reverse(CardsPlayed)),
 	    Winner = get_winner(WinnerCard, NextTable),
-	    send_to_all(Players, {wins, proplists:get_value(Winner, Players), CardsPlayed}),
-	    NextTaken = update(Winner, [CardsPlayed | get(Winner, Taken, [])], Taken),
+	    send_to_all(Players, {wins, get_value(Winner, Players), CardsPlayed}),
+	    NextTaken = Taken#{Winner := [CardsPlayed | get(Winner, Taken)]},
 	    case length(CardsLeft) of
 		0 ->
 		    finish_game(TableName, Players, Saved, GameType , NextTaken, PNL);
@@ -130,13 +131,13 @@ index_of(Pred,[H | T]) ->
     end.
 
 map_map(Map, Fn) ->
-    maps:fold(fun(K,V,A)-> {NK, NV} = Fn(K,V), put(NK, NV, A) end, maps:new(), Map).
+    maps:fold(fun(K,V,A)-> {NK, NV} = Fn(K,V), A#{NK => NV} end, maps:new(), Map).
 
 merge_with(Fn, M1, M2) ->
-    maps:fold(fun(K,V,A)-> update(K, Fn(get(K, A), V), A) end, M1, M2).
+    maps:fold(fun(K,V,A)-> A#{K := Fn(get(K, A), V)} end, M1, M2).
 
 finish_game(TableName, Players, Saved, GameType, Taken, {TotalPoints, GameNum, LastGame}) ->
-    MapFn = fun(K,V) -> {proplists:get_value(K, Players), V} end,
+    MapFn = fun(K,V) -> {get_value(K, Players), V} end,
     {Score, Points} = zole:result_points(GameType , Saved, Taken),
     NewTotalPoints = merge_with(fun erlang:'+'/2, TotalPoints, Points),
     GtMsg = game_type(GameType, Players),
@@ -146,7 +147,7 @@ finish_game(TableName, Players, Saved, GameType, Taken, {TotalPoints, GameNum, L
     new_game(TableName, Players, {NewTotalPoints, GameNum + 1, LastGame}).
 
 new_game(TableName, Players, {TotalPoints, GameNum, true} ) ->
-    MapFn = fun(K,V) -> {proplists:get_value(K, Players), V} end,
+    MapFn = fun(K,V) -> {get_value(K, Players), V} end,
     send_to_all(Players, {table_closed, TableName, {GameNum - 1, map_map(TotalPoints, MapFn)}}),
     admin:table_finished(TableName),
     {reply, {ok}, table_closed, []};
@@ -185,7 +186,7 @@ start_playing(TableName, Players, CardsMap, Saved, GameType, {_, GameNum, _}=PNL
     {reply, {ok}, playing, {TableName, Players, CardsMap, Saved, GameType, PNL, Hand, [], from_list(zip(player_pids(Players), [[],[],[]]))}}.
 
 game_type({T, Pid}, Players) ->
-    {T, proplists:get_value(Pid, Players)};
+    {T, get_value(Pid, Players)};
 game_type(T, _Players) ->
     T.
 
@@ -237,7 +238,7 @@ sync_event({last_game}, {From, _} , StateName, StateData) ->
 		false ->
 		    {{error, illegal_message}, StateName, StateData};
 		true ->
-		    send_to_all(Pls, {last_game, proplists:get_value(From, Pls)}),
+		    send_to_all(Pls, {last_game, get_value(From, Pls)}),
 		    {Reply, StateName, NewStateData}
 	    end;
 	_ ->

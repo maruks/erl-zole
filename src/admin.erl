@@ -45,7 +45,7 @@ call({login, Name}, {From, _}, {Tables, Players, Avail} = S) ->
 	true ->
 	    {{error, already_registered}, S};
 	false ->
-	    {{ok}, {Tables, put(From, Name, Players), Avail}}
+	    {{ok}, {Tables, Players#{From => Name}, Avail}}
     end;
 call({logout}, {From, _}, {Tables, Players, Avail} = S) ->
     case is_key(From, Players) of
@@ -68,7 +68,7 @@ call({get_or_create_table, TableName, Create}, {From, _}, {Tables, Players, Avai
 		    {{error, not_registered}, S};
 		{false, true} ->
 		    {ok, Pid} = table_sup:create_table(TableName),
-		    {{ok, Pid, PlayerName}, {put(TableName, Pid, Tables), Players, Avail}}
+		    {{ok, Pid, PlayerName}, { Tables#{TableName => Pid}, Players, Avail}}
 	    end
     end.
 
@@ -87,7 +87,7 @@ cast({table_available, Name, PlayersAvail}, {Tables, Players, Avail}) ->
 	StartBots -> start_player_bots(Name, 2);
 	true -> ok
     end,
-    {Tables, Players, put(Name, PlayersAvail, Avail)};
+    {Tables, Players, Avail#{Name => PlayersAvail}};
 cast({table_finished, Name}, {Tables, Players, Avail}) ->
     Pid = get(Name, Tables),
     table_sup:close_table(Pid),
