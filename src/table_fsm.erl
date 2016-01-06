@@ -169,15 +169,15 @@ first_hand(GameNum) ->
 start_game({TableName, Players, Cards, Table, PNL , Hand, Rem}) ->
     CardsMap = from_list(zip(player_pids(Players), Cards)),
     send_cards(CardsMap),
-    send_prompt(Hand, Players, {choose, Rem-1}),
+    send_prompt(Hand, Players, {choose, Rem}),
     {TableName, Players, CardsMap, Table, PNL , Hand , Rem}.
 
 pass({TableName, Players, CardsMap, Table, PNL, _, 0}) ->
     start_playing(TableName, Players, CardsMap, Table, {galds}, PNL);
 pass({TableName, Players, CardsMap, Table, PNL, Hand, Rem}) ->
     NextHand = 1 + (Hand + 1) rem ?NUMBER_OF_PLAYERS,
-    send_prompt(NextHand, Players, {choose, Rem - 1}),
-    {reply, {pass}, wait2choose, {TableName, Players, CardsMap, Table, PNL, NextHand, Rem-1}}.
+    send_prompt(NextHand, Players, {choose, Rem}),
+    {reply, {ok}, wait2choose, {TableName, Players, CardsMap, Table, PNL, NextHand, Rem-1}}.
 
 start_playing(TableName, Players, CardsMap, Saved, GameType, {_, GameNum, _}=PNL) ->
     Hand = first_hand(GameNum),

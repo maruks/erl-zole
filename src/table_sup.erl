@@ -31,29 +31,29 @@ join_or_create(TableName, Create) ->
 create_table(TableName) ->
     supervisor:start_child(?MODULE, [TableName]).
 
-close_table(TablePid) ->
+close_table(TablePid) when is_pid(TablePid) ->
     supervisor:terminate_child(?MODULE, TablePid).
 
-last_game(Table) ->
-    gen_fsm:sync_send_all_state_event(Table, {last_game}).
+last_game(TablePid) when is_pid(TablePid) ->
+    gen_fsm:sync_send_all_state_event(TablePid, {last_game}).
 
-leave(Table) ->
-    gen_fsm:sync_send_event(Table, {leave}).
+leave(TablePid) when is_pid(TablePid) ->
+    gen_fsm:sync_send_event(TablePid, {leave}).
 
-zole(Table) ->
-    gen_fsm:sync_send_event(Table, {zole}).
+zole(TablePid) when is_pid(TablePid) ->
+    gen_fsm:sync_send_event(TablePid, {zole}).
 
-lielais(Table) ->
-    gen_fsm:sync_send_event(Table, {lielais}).
+lielais(TablePid) when is_pid(TablePid) ->
+    gen_fsm:sync_send_event(TablePid, {lielais}).
 
-pass(Table) ->
-    gen_fsm:sync_send_event(Table, {pass}).
+pass(TablePid) when is_pid(TablePid) ->
+    gen_fsm:sync_send_event(TablePid, {pass}).
 
-save(Table, Cards) ->
-    gen_fsm:sync_send_event(Table, {save, Cards}).
+save(TablePid, Cards) when is_pid(TablePid) ->
+    gen_fsm:sync_send_event(TablePid, {save, Cards}).
 
-play(Table, Card) ->
-    gen_fsm:sync_send_event(Table, {play, Card}).
+play(TablePid, Card) when is_pid(TablePid) ->
+    gen_fsm:sync_send_event(TablePid, {play, Card}).
 
 % internal functions
 
