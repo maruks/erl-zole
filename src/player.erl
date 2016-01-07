@@ -55,10 +55,8 @@ loop(Name, Table, Cards, OnTable) ->
 	    loop(Name, Table, Cards, []);
 	{wins, _Winner, _CardsTaken} ->
     	    loop(Name, Table, Cards, []);
-	{game_type, _T, _N} ->
-    	    loop(Name, Table, Cards, OnTable);
-	{last_game, _P} ->
-    	    loop(Name, Table, Cards, OnTable);
 	{table_closed, _TableName, _Pts} ->
-    	    admin:logout()
+    	    admin:logout();
+	_ ->
+    	    loop(Name, Table, Cards, OnTable)
     end.

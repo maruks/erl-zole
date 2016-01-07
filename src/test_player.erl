@@ -85,6 +85,10 @@ loop(Name, Table, Cards, OnTable, Games2Play) ->
 	    lager:debug("~p GAME TYPE ~p ~p ~n",[Name, T, Games2Play]),
 	    last_game(Table),
     	    loop(Name, Table, Cards, OnTable, Games2Play);
+	{players, Players} ->
+	    lager:debug("~p Players ~p~n",[Name, Players]),
+	    ?assertEqual(3, length(Players)),
+    	    loop(Name, Table, Cards, OnTable, Games2Play);
 	{game_type, T, N} ->
 	    lager:debug("~p GAME TYPE ~p ~p ~n",[Name, T, N]),
     	    loop(Name, Table, Cards, OnTable, Games2Play);
@@ -99,8 +103,8 @@ loop(Name, Table, Cards, OnTable, Games2Play) ->
 	    io:format("Test finished ~p~n",[Pts]),
 	    admin:logout();
 	M ->
-	    lager:error("MSG ~p ~p~n",[Name, M]),
-	    loop(Name, Table, Cards, OnTable, Games2Play)
+	    lager:error("Unknown message ~p ~p~n",[Name, M]),
+	    ?assert(false)
     end.
 
 enable_log() ->
