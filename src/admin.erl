@@ -42,7 +42,7 @@ table_unavailable(Name) ->
 call({list_tables}, _, {_Tables, _Players, Avail} = S) ->
     {{ok, Avail}, S};
 call({login, Name}, {From, _}, {Tables, Players, Avail} = S) ->
-    Error = is_key(From, Players) orelse member(values(Players), Name),
+    Error = is_key(From, Players) orelse member(Name, values(Players)),
     if Error ->
 	    {{error, already_registered}, S};
 	true ->
