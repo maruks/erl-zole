@@ -37,9 +37,13 @@ wait2join({join, Name}, {From, _}, {TableName, Players} = S) ->
 wait2join({leave}, {From, _}, {TableName, Players} = S) ->
     case is_defined(From, Players) of
 	true ->
-	    NextPlayers = proplists:delete(From, Players),
- 	    admin:table_available(TableName, player_names(NextPlayers)),
-	    {reply, {ok}, wait2join, {TableName, NextPlayers}};
+	    NewPlayers = proplists:delete(From, Players),
+	    case length(NewPlayers) of
+		0 -> admin:table_finished(TableName),
+		    {reply, {ok}, table_closed, []};
+		_ -> admin:table_available(TableName, player_names(NewPlayers)),
+		    {reply, {ok}, wait2join, {TableName, NewPlayers}}
+		end;
 	false ->
 	    illegal_message(wait2join, S)
 	end.
@@ -237,14 +241,43 @@ sync_event({last_game}, {From, _} , StateName, StateData) ->
 	    Pids = player_pids(Pls),
 	    case member(From, Pids) of
 		false ->
-		    {{error, illegal_message}, StateName, StateData};
+		    {reply, {error, illegal_message}, StateName, StateData};
 		true ->
 		    send_to_all(Pls, {last_game, get_value(From, Pls)}),
-		    {Reply, StateName, NewStateData}
+		    {reply, Reply, StateName, NewStateData}
 	    end;
 	_ ->
-	    {Reply, StateName, StateData}
+	    {reply, Reply, StateName, StateData}
+    end;
+sync_event({disconnect}, {_, _} , table_closed, StateData) ->
+    {next_state, table_closed, StateData};
+sync_event({disconnect}, {From, R} , State, StateData) ->
+    TableName = element(1, StateData),
+    Players = element(2, StateData),
+    case proplists:is_defined(From, Players) of
+	true ->
+	    case State of
+		wait2join ->
+		    wait2join({leave}, {From, R}, {TableName, Players});
+		_ ->
+		    send_to_all(Players, {disconnected, proplists:get_value(From, Players)}),
+		    {TotalPoints, GameNum, _} = pnl(State, StateData),
+		    MapFn = fun(K,V) -> {proplists:get_value(K, Players), V} end,
+		    NewPoints = put(From, get(From, TotalPoints) - 16, TotalPoints),
+		    send_to_all(Players, {table_closed, TableName, {GameNum, map_map(NewPoints, MapFn)}}),
+		    admin:table_finished(TableName),
+		    {next_state, table_closed, []}
+	    end;
+	false ->
+	    {next_state, State, StateData}
     end.
+
+pnl(wait2choose, S) ->
+    element(5,S);
+pnl(wait2save, S) ->
+    element(6, S);
+pnl(playing, S) ->
+    element(6, S).
 
 illegal_message(State, Data) ->
     {reply,{error, illegal_message}, State, Data}.
@@ -258,8 +291,7 @@ handle_event(_Event, StateName, StateData) ->
     {next_state, StateName, StateData}.
 
 handle_sync_event(Event, From, StateName, StateData) ->
-    {Reply, NextStateName, NewStateData} = sync_event(Event, From, StateName, StateData),
-    {reply, Reply, NextStateName, NewStateData}.
+    sync_event(Event, From, StateName, StateData).
 
 code_change(_OldVsn, StateName, State, _Extra) ->
     {ok, StateName, State}.

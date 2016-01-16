@@ -7,7 +7,7 @@
 
 -behaviour(supervisor).
 
--export([start_link/0,init/1,join_or_create/2,close_table/1,last_game/1,leave/1,zole/1,lielais/1,pass/1,save/2,play/2,create_table/1]).
+-export([start_link/0,init/1,join_or_create/2,close_table/1,last_game/1,leave/1,zole/1,lielais/1,pass/1,save/2,play/2,create_table/1,disconnect/1]).
 
 -define(SERVER, ?MODULE).
 
@@ -39,6 +39,9 @@ last_game(TablePid) when is_pid(TablePid) ->
 
 leave(TablePid) when is_pid(TablePid) ->
     gen_fsm:sync_send_event(TablePid, {leave}).
+
+disconnect(Table) ->
+    gen_fsm:sync_send_all_state_event(Table, {disconnect}).
 
 zole(TablePid) when is_pid(TablePid) ->
     gen_fsm:sync_send_event(TablePid, {zole}).
