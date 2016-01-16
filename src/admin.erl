@@ -92,7 +92,7 @@ cast({table_available, Name, PlayersAvail}, {Tables, Players, Avail}) ->
 cast({table_finished, Name}, {Tables, Players, Avail}) ->
     Pid = get(Name, Tables),
     table_sup:close_table(Pid),
-    {remove(Name, Tables), Players, Avail}.
+    {remove(Name, Tables), Players, remove(Name, Avail)}.
 
 % callbacks
 
