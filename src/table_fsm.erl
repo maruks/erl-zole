@@ -250,7 +250,7 @@ sync_event({last_game}, {From, _} , StateName, StateData) ->
 	    {reply, Reply, StateName, StateData}
     end;
 sync_event({disconnect}, {_, _} , table_closed, StateData) ->
-    {next_state, table_closed, StateData};
+    illegal_message(table_closed, StateData);
 sync_event({disconnect}, {From, R} , State, StateData) ->
     TableName = element(1, StateData),
     Players = element(2, StateData),
@@ -266,10 +266,10 @@ sync_event({disconnect}, {From, R} , State, StateData) ->
 		    NewPoints = put(From, get(From, TotalPoints) - 16, TotalPoints),
 		    send_to_all(Players, {table_closed, TableName, {GameNum, map_map(NewPoints, MapFn)}}),
 		    admin:table_finished(TableName),
-		    {next_state, table_closed, []}
+		    {reply, {ok}, table_closed, []}
 	    end;
 	false ->
-	    {next_state, State, StateData}
+	    illegal_message(State, StateData)
     end.
 
 pnl(wait2choose, S) ->
