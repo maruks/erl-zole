@@ -46,7 +46,9 @@ wait2join({leave}, {From, _}, {TableName, Players} = S) ->
 		end;
 	false ->
 	    illegal_message(wait2join, S)
-	end.
+	end;
+wait2join(_, _, S) ->
+    illegal_message(wait2join, S).
 
 wait2choose(Msg, {Player, _}, {TableName, Players, CardsMap, Table, PNL, Hand, Rem} = S) ->
     Pids = player_pids(Players),
@@ -68,7 +70,9 @@ wait2choose(Msg, {Player, _}, {TableName, Players, CardsMap, Table, PNL, Hand, R
 	    end;
        false ->
 	    illegal_message(wait2choose, S)
-    end.
+    end;
+wait2choose(_, _, S) ->
+    illegal_message(wait2choose, S).
 
 wait2save({save, Cards}, {Player, _}, {TableName, Players, CardsMap, [], {lielais, Player}, PNL} = S) when is_list(Cards) ->
     Pids = player_pids(Players),
