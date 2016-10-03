@@ -27,7 +27,7 @@ wait2join({join, Name}, {From, _}, {TableName, Players} = S) ->
 	    if length(NextPlayers) == ?NUMBER_OF_PLAYERS ->
 		    admin:table_unavailable(TableName),
 		    Points = from_list(zip(player_pids(NextPlayers), [0,0,0])),
-		    send_to_all(Players, {players, map(fun({_, N})-> N end, NextPlayers)}),
+		    send_to_all(NextPlayers, {players, map(fun({_, N})-> N end, NextPlayers)}),
 		    new_game(TableName, NextPlayers, {Points, 1, false});
 	       true ->
 		    admin:table_available(TableName, player_names(NextPlayers)),
