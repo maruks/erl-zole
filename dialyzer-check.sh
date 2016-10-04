@@ -1,3 +1,3 @@
 #!/bin/bash
 
-dialyzer --src src
+dialyzer _build/default/lib/zole/ebin -Wrace_conditions -Wunderspecs

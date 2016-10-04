@@ -1,7 +1,7 @@
 -module(test_player).
 -include_lib("stdlib/include/assert.hrl").
 -import(table_sup,[join_or_create/2,last_game/1,leave/1,zole/1,lielais/1,pass/1,save/2,play/2]).
--import(lists,[foldl/3,any/2,last/1,filter/2,nth/2,sublist/3,flatten/1]).
+-import(lists,[foldl/3,any/2,last/1,filter/2,nth/2,sublist/3,flatten/1,all/2]).
 -import(maps,[values/1]).
 -export([init/4,start/1,start_1/2,start_3/1,enable_log/0,run_tests/0]).
 
@@ -88,7 +88,8 @@ loop(Name, Table, Cards, OnTable, Games2Play, Observer) ->
     	    loop(Name, Table, Cards, OnTable, Games2Play, Observer);
 	{players, Players} ->
 	    lager:debug("Player ~p Players ~p~n",[Name, Players]),
-	    ?assertEqual(3, length(Players)),
+	    ?assert(all(fun(OtherPlayersName) -> Name =/= OtherPlayersName end, Players)),
+	    ?assertEqual(2, length(Players)),
     	    loop(Name, Table, Cards, OnTable, Games2Play, Observer);
 	{game_type, T, N} ->
 	    lager:debug("Player ~p GAME TYPE ~p ~p ~n",[Name, T, N]),

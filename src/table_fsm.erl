@@ -1,10 +1,10 @@
 -module(table_fsm).
 -define(NUMBER_OF_PLAYERS, 3).
 -behaviour(gen_fsm).
--import(lists,[delete/2,nth/2,split/2,sort/2,map/2,nth/2,zip/2,member/2,reverse/1,foreach/2]).
+-import(lists,[delete/2,nth/2,map/2,nth/2,zip/2,member/2,reverse/1,foreach/2]).
 -import(proplists,[get_value/2,is_defined/2]).
--import(maps,[get/2,put/3,from_list/1,to_list/1,is_key/2,keys/1,get/3,update/3]).
--import(zole,[deal_cards/0,deck/0,sort_cards/1,winner/1,is_legal_play/3,is_legal_save/2]).
+-import(maps,[get/2,put/3,from_list/1,to_list/1]).
+-import(zole,[deal_cards/0,sort_cards/1,winner/1,is_legal_play/3,is_legal_save/2]).
 -export([init/1,start_link/1,terminate/3,handle_info/3,code_change/4,handle_sync_event/4,handle_event/3]).
 -export([wait2join/3,wait2choose/3,wait2save/3,playing/3,table_closed/3]).
 
@@ -23,11 +23,14 @@ wait2join({join, Name}, {From, _}, {TableName, Players} = S) ->
 	true ->
 	    illegal_message(wait2join, S);
 	false ->
-	    NextPlayers = [{From, Name} | Players],
+	    NextPlayers = Players ++ [{From, Name}],
 	    if length(NextPlayers) == ?NUMBER_OF_PLAYERS ->
 		    admin:table_unavailable(TableName),
 		    Points = from_list(zip(player_pids(NextPlayers), [0,0,0])),
-		    send_to_all(NextPlayers, {players, map(fun({_, N})-> N end, NextPlayers)}),
+		    [{Player1, Player1Name}, {Player2, Player2Name}, {Player3, Player3Name}] = NextPlayers,
+		    Player1 ! {players, [Player2Name, Player3Name]},
+		    Player2 ! {players, [Player3Name, Player1Name]},
+		    Player3 ! {players, [Player1Name, Player2Name]},
 		    new_game(TableName, NextPlayers, {Points, 1, false});
 	       true ->
 		    admin:table_available(TableName, player_names(NextPlayers)),
