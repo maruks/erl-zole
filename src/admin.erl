@@ -86,7 +86,7 @@ cast({table_unavailable, Name}, {Tables, Players, Avail, Subs}) ->
     foreach(fun(P) -> P ! {open_tables, NewAvail} end, sets:to_list(Subs)),
     {Tables, Players, NewAvail, Subs};
 cast({table_available, Name, PlayersAvail}, {Tables, Players, Avail, Subs}) ->
-    StartBots = length(PlayersAvail) == 0 andalso prefix(?PLAY_VERSUS_BOT_TABLE, Name),
+    StartBots = length(PlayersAvail) == 1 andalso prefix(?PLAY_VERSUS_BOT_TABLE, Name),
     if
 	StartBots -> start_player_bots(Name, 2);
 	true -> ok

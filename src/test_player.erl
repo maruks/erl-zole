@@ -49,14 +49,14 @@ loop(Name, Table, Cards, OnTable, Games2Play, Observer) ->
 	    save(Table, S),
        	    lager:debug("Player ~p saves ~p~n",[Name, S]),
 	    loop(Name, Table, Cards, [], Games2Play, Observer);
-	{prompt, {choose, _N}} ->
+	{prompt, {choose, N}} ->
 	    R = random:uniform(5),
 	    case R of
 		L when L<3 -> lielais(Table);
 		3 -> zole(Table);
 		_ -> pass(Table)
 	    end,
-	    lager:debug("Player ~p chooses ~p  ~n",[Name, R]),
+	    lager:debug("Player ~p chooses ~p ~p  ~n",[Name, N, R]),
 	    loop(Name, Table, Cards, [], Games2Play, Observer);
 	{plays, P, NewOnTable} ->
 	    lager:debug("Player ~p ~p PLAYS ~p ~p ~n",[Name, P, hd(NewOnTable), NewOnTable]),

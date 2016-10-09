@@ -13,7 +13,6 @@ start_link(Name) ->
 
 init(Name) ->
     process_flag(trap_exit, true),
-    admin:table_available(Name, []),
     {ok, wait2join, {Name, []}}.
 
 % FSM states
@@ -67,7 +66,7 @@ wait2choose(Msg, {Player, _}, {TableName, Players, CardsMap, Table, PNL, Hand, R
 		    send_prompt(Player, save),
 		    {reply, {ok}, wait2save, {TableName, Players, NextCards, [], {lielais, Player}, PNL}};
 		 {pass} ->
-		    pass({TableName, Players, CardsMap, Table, PNL, Hand, Rem});
+		    pass(S);
 		 _ ->
 		    illegal_message(wait2choose, S)
 	    end;
@@ -188,7 +187,7 @@ pass({TableName, Players, CardsMap, Table, PNL, _, 0}) ->
     start_playing(TableName, Players, CardsMap, Table, {galds}, PNL);
 pass({TableName, Players, CardsMap, Table, PNL, Hand, Rem}) ->
     NextHand = 1 + Hand rem ?NUMBER_OF_PLAYERS,
-    send_prompt(NextHand, Players, {choose, Rem}),
+    send_prompt(NextHand, Players, {choose, Rem-1}),
     {reply, {ok}, wait2choose, {TableName, Players, CardsMap, Table, PNL, NextHand, Rem-1}}.
 
 start_playing(TableName, Players, CardsMap, Saved, GameType, {_, GameNum, _}=PNL) ->
