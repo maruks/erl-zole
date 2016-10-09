@@ -129,7 +129,7 @@ play(Card, Player, {TableName, Players, Cards, Saved, GameType, PNL, Hand, Table
 		    {reply, {ok}, playing, {TableName, Players, NextCards, Saved, GameType, PNL, NextHand, [], NextTaken}}
 	    end;
 	_ ->
-	    NextHand = 1 + (1 + Hand) rem ?NUMBER_OF_PLAYERS,
+	    NextHand = 1 + Hand rem ?NUMBER_OF_PLAYERS,
 	    send_prompt(NextHand, Players, play),
 	    {reply, {ok}, playing, {TableName, Players, NextCards, Saved, GameType, PNL, NextHand, NextTable, Taken}}
     end.
@@ -176,7 +176,7 @@ player_names(Players) ->
     map(fun({_,Name})-> Name end, Players).
 
 first_hand(GameNum) ->
-    1 + (GameNum + 1) rem ?NUMBER_OF_PLAYERS.
+    1 + (GameNum - 1) rem ?NUMBER_OF_PLAYERS.
 
 start_game({TableName, Players, Cards, Table, PNL , Hand, Rem}) ->
     CardsMap = from_list(zip(player_pids(Players), Cards)),
@@ -187,7 +187,7 @@ start_game({TableName, Players, Cards, Table, PNL , Hand, Rem}) ->
 pass({TableName, Players, CardsMap, Table, PNL, _, 0}) ->
     start_playing(TableName, Players, CardsMap, Table, {galds}, PNL);
 pass({TableName, Players, CardsMap, Table, PNL, Hand, Rem}) ->
-    NextHand = 1 + (Hand + 1) rem ?NUMBER_OF_PLAYERS,
+    NextHand = 1 + Hand rem ?NUMBER_OF_PLAYERS,
     send_prompt(NextHand, Players, {choose, Rem}),
     {reply, {ok}, wait2choose, {TableName, Players, CardsMap, Table, PNL, NextHand, Rem-1}}.
 

@@ -37,7 +37,7 @@ choose_card(Cards, OnTable) ->
 loop(Name, Table, Cards, OnTable, Games2Play, Observer) ->
     receive
 	{cards, NewCards} ->
-	    lager:debug("Player ~p Cards ~p~n",[Name, NewCards]),
+	    lager:debug("Player ~p Cards ~p ~p~n",[Name,length(NewCards),NewCards]),
 	    loop(Name, Table, NewCards, OnTable, Games2Play, Observer);
 	{prompt, play} ->
 	    C = choose_card(Cards, OnTable),
