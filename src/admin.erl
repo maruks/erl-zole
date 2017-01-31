@@ -7,12 +7,14 @@
 -export([handle_call/3,handle_cast/2,handle_info/2,terminate/2,code_change/3]).
 -export([list_avail_tables/0,login/1,logout/0,table_finished/1,table_available/2,table_unavailable/1,get_or_create_table/2,subscribe/1,unsubscribe/1]).
 
+-record(state, {tables = new(), players = new(), avail = new(), subs = sets:new()}).
+
 start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, {}, []).
 
 init(_) ->
     process_flag(trap_exit, true),
-    {ok, {new(), new(), new(), sets:new()}}.
+    {ok, #state{}}.
 
 % API
 
@@ -45,23 +47,23 @@ unsubscribe(Pid) ->
 
 % calls
 
-call({list_tables}, _, {_Tables, _Players, Avail, _Subs} = S) ->
+call({list_tables}, _, #state{avail = Avail} = S) ->
     {{ok, Avail}, S};
-call({login, Name}, {From, _}, {Tables, Players, Avail, Subs} = S) ->
+call({login, Name}, {From, _}, #state{players=Players} = S) ->
     Error = is_key(From, Players) orelse member(Name, values(Players)),
     if Error ->
 	    {{error, already_registered}, S};
 	true ->
-	    {{ok}, {Tables, Players#{From => Name}, Avail, Subs}}
+	    {{ok}, S#state{players=Players#{From => Name}}}
     end;
-call({logout}, {From, _}, {Tables, Players, Avail, Subs} = S) ->
+call({logout}, {From, _}, #state{players = Players, subs = Subs} = S) ->
     case is_key(From, Players) of
 	false ->
 	    {{error, not_registered}, S};
 	true ->
-	    {{ok}, {Tables, remove(From, Players), Avail, sets:del_element(From, Subs)}}
+	    {{ok}, S#state{players=remove(From, Players),subs=sets:del_element(From, Subs)}}
     end;
-call({get_or_create_table, TableName, Create}, {From, _}, {Tables, Players, Avail, Subs} = S) ->
+call({get_or_create_table, TableName, Create}, {From, _}, #state{tables=Tables, players=Players} = S) ->
     case is_key(From, Players) of
 	false ->
 	    {{error, unknown_pid}, S};
@@ -75,17 +77,17 @@ call({get_or_create_table, TableName, Create}, {From, _}, {Tables, Players, Avai
 		    {{error, not_registered}, S};
 		{false, true} ->
 		    {ok, Pid} = table_sup:create_table(TableName),
-		    {{ok, Pid, PlayerName}, { Tables#{TableName => Pid}, Players, Avail, Subs}}
+		    {{ok, Pid, PlayerName}, S#state{ tables=Tables#{TableName => Pid}}}
 	    end
     end.
 
 % casts
 
-cast({table_unavailable, Name}, {Tables, Players, Avail, Subs}) ->
+cast({table_unavailable, Name}, #state{avail = Avail, subs = Subs} = S) ->
     NewAvail = remove(Name, Avail),
     foreach(fun(P) -> P ! {open_tables, NewAvail} end, sets:to_list(Subs)),
-    {Tables, Players, NewAvail, Subs};
-cast({table_available, Name, PlayersAvail}, {Tables, Players, Avail, Subs}) ->
+    S#state{avail = NewAvail};
+cast({table_available, Name, PlayersAvail}, #state{avail = Avail, subs = Subs} = S) ->
     StartBots = length(PlayersAvail) == 1 andalso prefix(?PLAY_VERSUS_BOT_TABLE, Name),
     if
 	StartBots -> start_player_bots(Name, 2);
@@ -93,21 +95,21 @@ cast({table_available, Name, PlayersAvail}, {Tables, Players, Avail, Subs}) ->
     end,
     NewAvail = Avail#{Name => PlayersAvail},
     foreach(fun(P) -> P ! {open_tables, NewAvail} end, sets:to_list(Subs)),
-    {Tables, Players, NewAvail, Subs};
-cast({table_finished, Name}, {Tables, Players, Avail, Subs}) ->
+    S#state{avail = NewAvail};
+cast({table_finished, Name}, #state{tables = Tables, avail = Avail, subs = Subs} = S) ->
     Pid = get(Name, Tables),
     table_sup:close_table(Pid),
     NewAvail = remove(Name, Avail),
     foreach(fun(P) -> P ! {open_tables, NewAvail} end, sets:to_list(Subs)),
-    {remove(Name, Tables), Players, NewAvail, Subs};
-cast({subscribe, Pid}, {Tables, Players, Avail, Subs} = S) ->
+    S#state{tables=remove(Name, Tables), avail = NewAvail};
+cast({subscribe, Pid}, #state{players = Players, avail = Avail, subs = Subs} = S) ->
     case is_key(Pid, Players) of
 	false -> S;
 	true -> Pid ! {open_tables, Avail},
-	       {Tables, Players, Avail, sets:add_element(Pid, Subs)}
+	       S#state{subs=sets:add_element(Pid, Subs)}
     end;
-cast({unsubscribe, Pid}, {Tables, Players, Avail, Subs}) ->
-    {Tables, Players, Avail, sets:del_element(Pid, Subs)}.
+cast({unsubscribe, Pid}, #state{subs = Subs} = S) ->
+    S#state{subs=sets:del_element(Pid, Subs)}.
 
 % internal functions
 

@@ -14,11 +14,10 @@ init(Name, TableName, Games2Play, Observer) ->
     {ok} = admin:login(Name),
     admin:subscribe(self()),
     {ok, Pid} = table_sup:join_or_create(TableName, true),
-    zole:seed_rnd(),
     loop(Name, Pid, [], [], Games2Play, Observer).
 
 choose_card(Cards, []) ->
-    nth(random:uniform(length(Cards)), Cards);
+    nth(rand:uniform(length(Cards)), Cards);
 choose_card(Cards, OnTable) ->
     {_,S} = C = last(OnTable),
     Trump = zole:is_trump(C),
@@ -45,12 +44,12 @@ loop(Name, Table, Cards, OnTable, Games2Play, Observer) ->
 	    play(Table, C),
 	    loop(Name, Table, Cards, OnTable, Games2Play, Observer);
 	{prompt, save} ->
-	    S = sublist(Cards, random:uniform(length(Cards) - 2), 2),
+	    S = sublist(Cards, rand:uniform(length(Cards) - 2), 2),
 	    save(Table, S),
        	    lager:debug("Player ~p saves ~p~n",[Name, S]),
 	    loop(Name, Table, Cards, [], Games2Play, Observer);
 	{prompt, {choose, N}} ->
-	    R = random:uniform(5),
+	    R = rand:uniform(5),
 	    case R of
 		L when L<3 -> lielais(Table);
 		3 -> zole(Table);

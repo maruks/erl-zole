@@ -1,19 +1,18 @@
 -module(player).
 -import(table_sup,[join_or_create/2,last_game/1,leave/1,zole/1,lielais/1,pass/1,save/2,play/2]).
--import(zole,[is_trump/1,seed_rnd/0]).
+-import(zole,[is_trump/1]).
 -export([start/2,init/2]).
 
 init(Name, TableName) ->
     {ok} = admin:login(Name),
     {ok, Pid} = table_sup:join_or_create(TableName, true),
-    seed_rnd(),
     loop(Name, Pid, [], []).
 
 start(Name, Table) ->
     spawn(?MODULE, init, [Name, Table]).
 
 choose_card(Cards, []) ->
-    lists:nth(random:uniform(length(Cards)), Cards);
+    lists:nth(rand:uniform(length(Cards)), Cards);
 choose_card(Cards, OnTable) ->
     {R,S} = C = lists:last(OnTable),
     Trump = is_trump(C),
@@ -38,11 +37,11 @@ loop(Name, Table, Cards, OnTable) ->
 	    play(Table, C),
 	    loop(Name, Table, Cards, OnTable);
 	{prompt, save} ->
-	    S = lists:sublist(Cards, random:uniform(length(Cards) - 2), 2),
+	    S = lists:sublist(Cards, rand:uniform(length(Cards) - 2), 2),
 	    save(Table, S),
 	    loop(Name, Table, Cards, []);
 	{prompt, {choose, _N}} ->
-	    R = random:uniform(5),
+	    R = rand:uniform(5),
 	    case R of
 		L when L<3 -> lielais(Table);
 		3 -> zole(Table);
