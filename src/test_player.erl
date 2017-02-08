@@ -10,11 +10,20 @@
 -define(CARDS_WON_PER_GAME, 24).
 -define(PLAYERS, 3).
 
+-type card():: {atom() | pos_integer(), atom()}.
+
+-record(state,{name :: nonempty_string(),
+	       table :: pid(),
+	       cards = [] :: list(card()),
+	       on_table = [] :: list(card()),
+	       games_to_play :: pos_integer(),
+	       observer :: pid()}).
+
 init(Name, TableName, Games2Play, Observer) ->
     {ok} = admin:login(Name),
     admin:subscribe(self()),
     {ok, Pid} = table_sup:join_or_create(TableName, true),
-    loop(Name, Pid, [], [], Games2Play, Observer).
+    loop(#state{name = Name, table = Pid, games_to_play = Games2Play, observer = Observer}).
 
 choose_card(Cards, []) ->
     nth(rand:uniform(length(Cards)), Cards);
@@ -33,35 +42,35 @@ choose_card(Cards, OnTable) ->
 	end,
     choose_card(F, []).
 
-loop(Name, Table, Cards, OnTable, Games2Play, Observer) ->
+loop(#state{name = Name, table = Table, cards = Cards, on_table = OnTable, games_to_play = Games2Play, observer = Observer} = S) ->
     receive
 	{cards, NewCards} ->
-	    lager:debug("Player ~p Cards ~p ~p~n",[Name,length(NewCards),NewCards]),
-	    loop(Name, Table, NewCards, OnTable, Games2Play, Observer);
+	    lager:debug("Player [~p] Cards ~p ~p~n",[Name,length(NewCards),NewCards]),
+	    loop(S#state{cards = NewCards});
 	{prompt, play} ->
 	    C = choose_card(Cards, OnTable),
-    	    lager:debug("Player ~p plays ~p ~p ~n",[Name , C, OnTable]),
-	    play(Table, C),
-	    loop(Name, Table, Cards, OnTable, Games2Play, Observer);
+    	    lager:debug("Player [~p] plays ~p ~p ~n",[Name , C, OnTable]),
+	    {ok} = play(Table, C),
+	    loop(S);
 	{prompt, save} ->
-	    S = sublist(Cards, rand:uniform(length(Cards) - 2), 2),
-	    save(Table, S),
-       	    lager:debug("Player ~p saves ~p~n",[Name, S]),
-	    loop(Name, Table, Cards, [], Games2Play, Observer);
+	    ToSave = sublist(Cards, rand:uniform(length(Cards) - 2), 2),
+	    {ok} = save(Table, ToSave),
+       	    lager:debug("Player [~p] saves ~p~n",[Name, ToSave]),
+	    loop(S#state{on_table = []});
 	{prompt, {choose, N}} ->
 	    R = rand:uniform(5),
-	    case R of
-		L when L<3 -> lielais(Table);
-		3 -> zole(Table);
-		_ -> pass(Table)
-	    end,
-	    lager:debug("Player ~p chooses ~p ~p  ~n",[Name, N, R]),
-	    loop(Name, Table, Cards, [], Games2Play, Observer);
+	    {ok} = case R of
+		       L when L<3 -> lielais(Table);
+		       3 -> zole(Table);
+		       _ -> pass(Table)
+		   end,
+	    lager:debug("Player [~p] chooses ~p ~p~n",[Name, N, R]),
+	    loop(S#state{on_table = []});
 	{plays, P, NewOnTable} ->
-	    lager:debug("Player ~p ~p PLAYS ~p ~p ~n",[Name, P, hd(NewOnTable), NewOnTable]),
-	    loop(Name, Table, Cards, NewOnTable, Games2Play, Observer);
+	    lager:debug("Player [~p] ~p PLAYS ~p ~p~n",[Name, P, hd(NewOnTable), NewOnTable]),
+	    loop(S#state{on_table = NewOnTable});
 	{end_of_game, GameNum, Saved, GameType, Taken, {Score, Points, TotalPoints} = Pts} ->
-    	    lager:debug("END Player ~p ~p ~p ~p ~p ~p ~n",[Name, GameNum, Saved, GameType, Taken, Pts]),
+    	    lager:debug("END Player [~p] ~p ~p ~p ~p ~p~n",[Name, GameNum, Saved, GameType, Taken, Pts]),
 	    {TricksWon, PointsWon} = foldl(fun({T,P},{TA, PA}) -> {TA + T, PA + P} end, {0,0}, values(Score)),
 	    SavedPoints = foldl(fun({R,_},A) -> A + zole:points(R) end, 0, Saved),
 	    ExpPoints = case GameType of
@@ -77,32 +86,32 @@ loop(Name, Table, Cards, OnTable, Games2Play, Observer) ->
        	    ?assertEqual(?PLAYERS, maps:size(Points)),
        	    ?assertEqual(?PLAYERS, maps:size(TotalPoints)),
        	    ?assertEqual(?PLAYERS, maps:size(Score)),
-	    loop(Name, Table, Cards, [], Games2Play, Observer);
+	    loop(S#state{on_table = []});
 	{wins, Winner, CardsTaken} ->
-	    lager:debug("Player ~p ~p WINS ~p~n",[Name, Winner, CardsTaken]),
-    	    loop(Name, Table, Cards, [], Games2Play, Observer);
+	    lager:debug("Player [~p] ~p WINS ~p~n",[Name, Winner, CardsTaken]),
+    	    loop(S#state{on_table = []});
 	{game_type, T, Games2Play} ->
-	    lager:debug("Player ~p GAME TYPE ~p ~p ~n",[Name, T, Games2Play]),
+	    lager:debug("Player [~p] GAME TYPE ~p ~p ~n",[Name, T, Games2Play]),
 	    last_game(Table),
-    	    loop(Name, Table, Cards, OnTable, Games2Play, Observer);
+    	    loop(S);
 	{players, Players} ->
-	    lager:debug("Player ~p Players ~p~n",[Name, Players]),
+	    lager:debug("Player [~p] Players ~p~n",[Name, Players]),
 	    ?assert(all(fun(OtherPlayersName) -> Name =/= OtherPlayersName end, Players)),
 	    ?assertEqual(2, length(Players)),
-    	    loop(Name, Table, Cards, OnTable, Games2Play, Observer);
+    	    loop(S);
 	{game_type, T, N} ->
-	    lager:debug("Player ~p GAME TYPE ~p ~p ~n",[Name, T, N]),
-    	    loop(Name, Table, Cards, OnTable, Games2Play, Observer);
+	    lager:debug("Player [~p] GAME TYPE ~p ~p ~n",[Name, T, N]),
+    	    loop(S);
 	{last_game, P} ->
-	    lager:debug("Player ~p ~p PLAYS LAST GAME ~n",[Name, P]),
-    	    loop(Name, Table, Cards, OnTable, Games2Play, Observer);
+	    lager:debug("Player [~p] ~p PLAYS LAST GAME ~n",[Name, P]),
+    	    loop(S);
 	{open_tables, Tables} ->
-	    lager:debug("Player ~p OPEN TABLES ~p~n",[Name, Tables]),
+	    lager:debug("Player [~p] OPEN TABLES ~p~n",[Name, Tables]),
 	    ?assert(is_map(Tables)),
 	    admin:unsubscribe(self()),
-	    loop(Name, Table, Cards, OnTable, Games2Play, Observer);
+	    loop(S);
 	{table_closed, TableName, {GamesPlayed,Pts}} ->
-    	    lager:debug("Player ~p TABLE CLOSED ~p ~p~n",[Name, TableName, Pts]),
+    	    lager:debug("Player [~p] TABLE CLOSED ~p ~p~n",[Name, TableName, Pts]),
 	    ?assertEqual(Games2Play, GamesPlayed),
 	    ?assertEqual(?PLAYERS, maps:size(Pts)),
     	    ?assertEqual(0, foldl(fun erlang:'+'/2, 0, values(Pts))),
@@ -145,7 +154,7 @@ start_3(Games2Play) when is_integer(Games2Play), Games2Play > 0 ->
 run_tests() ->
     application:ensure_all_started(zole),
     enable_log(),
-    start_3(1),
+    start_3(10),
     receive
 	test_finished -> erlang:halt()
     end.
