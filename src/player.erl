@@ -45,8 +45,8 @@ loop(#state{table = Table, cards = Cards, on_table = OnTable} = S) ->
 	    play(Table, C),
 	    loop(S);
 	{prompt, save} ->
-	    S = sublist(Cards, rand:uniform(length(Cards) - 2), 2),
-	    save(Table, S),
+	    ToSave = sublist(Cards, rand:uniform(length(Cards) - 2), 2),
+	    {ok} = save(Table, ToSave),
 	    loop(S#state{on_table=[]});
 	{prompt, {choose, _N}} ->
 	    R = rand:uniform(5),

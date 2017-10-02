@@ -3,7 +3,7 @@
 -import(table_sup,[join_or_create/2,last_game/1,leave/1,zole/1,lielais/1,pass/1,save/2,play/2]).
 -import(lists,[foldl/3,any/2,last/1,filter/2,nth/2,sublist/3,flatten/1,all/2]).
 -import(maps,[values/1]).
--export([init/4,start/1,start_1/2,start_3/1,enable_log/0,run_tests/0]).
+-export([init/4,start/1,start_1/2,start_3/1,enable_log/0,run_tests/1]).
 
 -define(POINTS_PER_GAME, 120).
 -define(TRICKS_PER_GAME, 8).
@@ -151,10 +151,10 @@ start_3(Games2Play) when is_integer(Games2Play), Games2Play > 0 ->
     spawn(?MODULE, init, ["player-test-" ++ P3, "table-test-" ++ T , Games2Play, self()]).
 
 % run tests
-run_tests() ->
+run_tests([Num]) ->
     application:ensure_all_started(zole),
     enable_log(),
-    start_3(10),
+    start(list_to_integer(Num)),
     receive
 	test_finished -> erlang:halt()
     end.
