@@ -35,33 +35,33 @@ close_table(TablePid) when is_pid(TablePid) ->
     supervisor:terminate_child(?MODULE, TablePid).
 
 last_game(TablePid) when is_pid(TablePid) ->
-    gen_fsm:sync_send_all_state_event(TablePid, {last_game}).
+    gen_statem:call(TablePid, {last_game}).
 
 leave(TablePid) when is_pid(TablePid) ->
-    gen_fsm:sync_send_event(TablePid, {leave}).
+    gen_statem:call(TablePid, {leave}).
 
 disconnect(Table) ->
-    gen_fsm:sync_send_all_state_event(Table, {disconnect}).
+    gen_statem:call(Table, {disconnect}).
 
 zole(TablePid) when is_pid(TablePid) ->
-    gen_fsm:sync_send_event(TablePid, {zole}).
+    gen_statem:call(TablePid, {zole}).
 
 lielais(TablePid) when is_pid(TablePid) ->
-    gen_fsm:sync_send_event(TablePid, {lielais}).
+    gen_statem:call(TablePid, {lielais}).
 
 pass(TablePid) when is_pid(TablePid) ->
-    gen_fsm:sync_send_event(TablePid, {pass}).
+    gen_statem:call(TablePid, {pass}).
 
 save(TablePid, Cards) when is_pid(TablePid) ->
-    gen_fsm:sync_send_event(TablePid, {save, Cards}).
+    gen_statem:call(TablePid, {save, Cards}).
 
 play(TablePid, Card) when is_pid(TablePid) ->
-    gen_fsm:sync_send_event(TablePid, {play, Card}).
+    gen_statem:call(TablePid, {play, Card}).
 
 % internal functions
 
 do_join(Table, Name) ->
-    R = gen_fsm:sync_send_event(Table, {join, Name}),
+    R = gen_statem:call(Table, {join, Name}),
     case R of
 	{ok} ->
 	    {ok, Table};
