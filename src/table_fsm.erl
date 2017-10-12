@@ -53,11 +53,11 @@ wait2join({call, {Pid, _} = From}, {join, Name}, #state{name = TableName, player
 		    Player1 ! {players, [Player2Name, Player3Name]},
 		    Player2 ! {players, [Player3Name, Player1Name]},
 		    Player3 ! {players, [Player1Name, Player2Name]},
-		    {NextState, NextData} = new_game(S#state{players = NextPlayers, points = Points, num = 1, last = false}),
-		    {next_state, NextState, NextData, {reply, From, {ok}}};
+		    NewState = new_game(S#state{players = NextPlayers, points = Points, num = 1, last = false}),
+		    next_state(From, NewState);
 	       true ->
 		    admin:table_available(TableName, player_names(NextPlayers)),
-		    {keep_state, S#state{players = NextPlayers}, {reply, From, {ok}}}
+		    keep_state(From, S#state{players = NextPlayers})
 	    end
 	end;
 wait2join({call, {Pid, _} = From}, {leave}, #state{name = TableName, players = Players} = S) ->
@@ -66,9 +66,9 @@ wait2join({call, {Pid, _} = From}, {leave}, #state{name = TableName, players = P
 	    NewPlayers = proplists:delete(Pid, Players),
 	    case length(NewPlayers) of
 		0 -> admin:table_finished(TableName),
-		    {next_state, table_closed, [], {reply, From, {ok}}};
+		    next_state(From, {table_closed, []});
 		_ -> admin:table_available(TableName, player_names(NewPlayers)),
-		    {keep_state, S#state{players = NewPlayers}, {reply, From, {ok}}}
+		    keep_state(From, S#state{players = NewPlayers})
 		end;
 	false ->
 	    illegal_message(From)
@@ -82,17 +82,17 @@ wait2choose({call, {Pid, _} = From}, Msg, #state{players= Players, cards = Cards
 	true ->
 	    case Msg of
 		{zole} ->
-		    {NextState, NextData} = start_playing(S#state{type = {zole, Pid}, saved = Table}),
-		    {next_state, NextState, NextData, {reply, From, {ok}}};
+		    NewState = start_playing(S#state{type = {zole, Pid}, saved = Table}),
+		    next_state(From, NewState);
 		{lielais} ->
 		    NewCards = get(Pid, CardsMap) ++ Table,
 		    NextCards = CardsMap#{Pid := NewCards},
 		    send_cards(Pid, NewCards),
 		    send_prompt(Pid, save),
-		    {next_state, wait2save, S#state{type = {lielais, Pid}, cards = NextCards, saved = []}, {reply, From, {ok}}};
+		    next_state(From, {wait2save, S#state{type = {lielais, Pid}, cards = NextCards, saved = []}});
 		 {pass} ->
-		    {NextState, NextData} = pass(S),
-		    {next_state, NextState, NextData, {reply, From, {ok}}};
+		    NewState = pass(S),
+		    next_state(From, NewState);
 		 _ ->
 		    illegal_message(From)
 	    end;
@@ -111,8 +111,8 @@ wait2save({call, {Pid, _} = From}, {save, Cards}, #state{players = Players, card
 	    NewCards = get(Pid, CardsMap) -- Cards,
 	    NextCards = CardsMap#{Pid := NewCards},
 	    send_cards(Pid, get(Pid, NextCards)),
-	    {NextState, NextData} = start_playing(S#state{cards = NextCards, saved = Cards, type = {lielais, Pid}}),
-	    {next_state, NextState, NextData, {reply, From, {ok}}}
+	    NewState = start_playing(S#state{cards = NextCards, saved = Cards, type = {lielais, Pid}}),
+	    next_state(From, NewState)
     end;
 wait2save({call, From}, Msg, S) ->
     handle_event(Msg, From, wait2save, S).
@@ -121,8 +121,8 @@ playing({call, {Pid,_} = From}, {play, Card},  #state{players = Players, cards =
     Pids = player_pids(Players),
     case nth(Hand,Pids) == Pid andalso is_legal_play(Card, get(Pid, CardsMap), table_cards(Table)) of
 	true ->
-	    {NextState, NextData} = play(Card, Pid, S),
-	    {next_state, NextState, NextData, {reply, From, {ok}}};
+	    NewState = play(Card, Pid, S),
+	    next_state(From, NewState);
 	false ->
 	    illegal_message(From)
 	end;
@@ -133,6 +133,12 @@ table_closed({call, From}, _, _) ->
     illegal_message(From).
 
 % internal functions
+
+next_state(From, {State, Data}) ->
+    {next_state, State, Data, {reply, From, {ok}}}.
+
+keep_state(From, Data) ->
+    {keep_state, Data, {reply, From, {ok}}}.
 
 play(Card, Player, #state{players = Players, table = Table, cards = Cards, hand = Hand, taken = Taken} = S) ->
     NextTable = [{Player, Card} | Table],
@@ -280,8 +286,6 @@ handle_event({last_game}, {Pid, _} = From, StateName, #state{players = Players} 
 	_ ->
 	    {keep_state_and_data, {reply, From, Reply}}
     end;
-handle_event({disconnect}, From, table_closed, _) ->
-    illegal_message(From);
 handle_event({disconnect}, {Pid, _} = From , State, #state{name = TableName, players = Players, points = TotalPoints, num = GameNum} = StateData) ->
     case proplists:is_defined(Pid, Players) of
 	true ->
@@ -294,11 +298,13 @@ handle_event({disconnect}, {Pid, _} = From , State, #state{name = TableName, pla
 		    NewPoints = put(Pid, get(Pid, TotalPoints) - 16, TotalPoints),
 		    send_to_all(Players, {table_closed, TableName, {GameNum, map_map(NewPoints, MapFn)}}),
 		    admin:table_finished(TableName),
-		    {next_state, table_closed, [], {reply, From, {ok}}}
+		    next_state(From, {table_closed, []})
 	    end;
 	false ->
 	    illegal_message(From)
-    end.
+    end;
+handle_event(_, From, _, _) ->
+    illegal_message(From).
 
 illegal_message(From) ->
     {keep_state_and_data, {reply, From, {error, illegal_message}}}.
