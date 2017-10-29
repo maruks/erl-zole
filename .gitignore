@@ -16,6 +16,6 @@ _deps
 _plugins
 _tdeps
 logs
-rebar.lock
 _build
 .#*
+
